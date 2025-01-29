@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - develop
+      - main
 
 jobs:
   build-and-deploy:
@@ -18,30 +19,26 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/pibbie-web:latest
+          IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/${{ secrets.IMAGE_REPOSITORY }}:latest
           docker build -t $IMAGE_NAME .
           docker push $IMAGE_NAME
 
-      - name: Deploy on Self-Hosted VM
+      - name: Deploy on Self-Hosted
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/pibbie-web:latest
+            IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/${{ secrets.IMAGE_REPOSITORY }}:latest
 
-            # Ensure Docker is authenticated with GHCR
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
 
-            # Pull the latest image
             docker pull $IMAGE_NAME || exit 1
 
-            # Stop and remove the old container (if exists)
-            if [ "$(docker ps -aq -f name=pibbie-web)" ]; then
-              docker stop pibbie-web
-              docker rm pibbie-web
+            if [ "$(docker ps -aq -f name=${{ secrets.DEV_CONTAINER_NAME }})" ]; then
+              docker stop ${{ secrets.DEV_CONTAINER_NAME }}
+              docker rm ${{ secrets.DEV_CONTAINER_NAME }}
             fi
 
-            # Run the new container
-            docker run -d --name pibbie-web -p 5000:3000 $IMAGE_NAME
+            docker run -d --name ${{ secrets.DEV_CONTAINER_NAME }} -p ${{ secrets.DEV_PORT }}:3000 $IMAGE_NAME
