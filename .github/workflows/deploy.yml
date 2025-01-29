@@ -41,4 +41,4 @@ jobs:
               docker rm ${{ secrets.DEV_CONTAINER_NAME }}
             fi
 
-            docker run -d --name ${{ secrets.DEV_CONTAINER_NAME }} -p ${{ secrets.DEV_PORT }}:3000 $IMAGE_NAME:$RELEASE_VERSION
+            docker run -d --name ${{ secrets.DEV_CONTAINER_NAME }} -p ${{ secrets.DEV_PORT }}:3000 $IMAGE_NAME
