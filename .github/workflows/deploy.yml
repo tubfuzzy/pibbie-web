@@ -30,7 +30,18 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/pibbie-web:latest
-            docker pull $IMAGE_NAME
-            docker stop pibbie-web || true
-            docker rm pibbie-web || true
+
+            # Ensure Docker is authenticated with GHCR
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+
+            # Pull the latest image
+            docker pull $IMAGE_NAME || exit 1
+
+            # Stop and remove the old container (if exists)
+            if [ "$(docker ps -aq -f name=pibbie-web)" ]; then
+              docker stop pibbie-web
+              docker rm pibbie-web
+            fi
+
+            # Run the new container
             docker run -d --name pibbie-web -p 5000:3000 $IMAGE_NAME
