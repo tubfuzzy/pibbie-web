@@ -1,0 +1,48 @@
+name: Deploy Next.js Container
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+
+      - name: Build and Push Docker Image with Release Tag
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/${{ secrets.IMAGE_REPOSITORY }}
+          
+          docker build -t $IMAGE_NAME:latest -t $IMAGE_NAME:$RELEASE_VERSION .
+          docker push $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:$RELEASE_VERSION
+
+      - name: Deploy on Self-Hosted
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            IMAGE_NAME=ghcr.io/${{ secrets.GHCR_USERNAME }}/${{ secrets.IMAGE_REPOSITORY }}
+            RELEASE_VERSION=${{ github.event.release.tag_name }}
+
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin
+
+            docker pull $IMAGE_NAME:$RELEASE_VERSION
+
+            if [ "$(docker ps -aq -f name=${{ secrets.CONTAINER_NAME }})" ]; then
+              docker stop ${{ secrets.CONTAINER_NAME }}
+              docker rm ${{ secrets.CONTAINER_NAME }}
+            fi
+
+            docker run -d --name ${{ secrets.CONTAINER_NAME }} -p ${{ secrets.PROD_PORT }}:3000 $IMAGE_NAME:$RELEASE_VERSION
